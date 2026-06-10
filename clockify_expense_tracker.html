@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clockify Expense Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+  :root {
+    --ink: #1a1a2e; --paper: #f7f6f2; --rule: #ddd9d0;
+    --accent: #2563eb; --green: #16a34a; --amber: #d97706;
+    --red: #dc2626; --purple: #7c3aed; --muted: #6b7280;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+  /* SETUP */
+  #setup-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; padding:2rem; }
+  .setup-card { background:white; border:1px solid var(--rule); border-radius:12px; padding:2.5rem; max-width:480px; width:100%; box-shadow:0 4px 24px rgba(0,0,0,0.06); }
+  .setup-card h1 { font-size:1.5rem; font-weight:600; margin-bottom:0.25rem; }
+  .setup-card > p { color:var(--muted); font-size:0.875rem; margin-bottom:1.75rem; }
+  .form-group { margin-bottom:1.25rem; }
+  label { display:block; font-size:0.8125rem; font-weight:500; margin-bottom:0.4rem; color:var(--ink); }
+  input, select { width:100%; padding:0.6rem 0.875rem; border:1px solid var(--rule); border-radius:6px; font-family:var(--mono); font-size:0.8125rem; background:white; color:var(--ink); outline:none; transition:border-color 0.15s; }
+  input:focus, select:focus { border-color:var(--accent); }
+  .btn-primary { width:100%; padding:0.7rem; background:var(--accent); color:white; border:none; border-radius:6px; font-family:var(--sans); font-size:0.9rem; font-weight:500; cursor:pointer; transition:background 0.15s; margin-top:0.5rem; }
+  .btn-primary:hover { background:#1d4ed8; }
+  .error-msg { color:var(--red); font-size:0.8rem; margin-top:0.75rem; display:none; }
+
+  /* APP */
+  #app-screen { display:none; }
+  header { background:var(--ink); color:white; padding:0 2rem; height:56px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  header .logo { font-family:var(--mono); font-size:0.9rem; font-weight:500; letter-spacing:0.04em; }
+  header .workspace-label { font-size:0.75rem; color:#94a3b8; font-family:var(--mono); }
+  .header-right { display:flex; align-items:center; gap:1rem; }
+  .btn-sm { padding:0.35rem 0.75rem; border-radius:5px; font-size:0.75rem; font-weight:500; cursor:pointer; border:1px solid rgba(255,255,255,0.2); background:transparent; color:white; transition:background 0.15s; }
+  .btn-sm:hover { background:rgba(255,255,255,0.1); }
+  .main { max-width:1200px; margin:0 auto; padding:2rem; }
+
+  .info-banner { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1.5rem; font-size:0.8rem; color:#1d4ed8; display:none; align-items:flex-start; gap:0.6rem; }
+  .info-banner.show { display:flex; }
+  .info-banner strong { font-weight:600; }
+
+  /* SUMMARY */
+  .summary-row { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
+  .summary-card { background:white; border:1px solid var(--rule); border-radius:10px; padding:1.25rem 1.5rem; cursor:pointer; transition:border-color 0.15s, box-shadow 0.15s; }
+  .summary-card:hover { border-color:var(--accent); box-shadow:0 2px 12px rgba(37,99,235,0.08); }
+  .summary-card.active-filter { border-color:var(--accent); box-shadow:0 0 0 2px rgba(37,99,235,0.15); }
+  .card-label { font-size:0.7rem; font-weight:500; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:0.5rem; }
+  .card-value { font-family:var(--mono); font-size:1.6rem; font-weight:500; line-height:1; margin-bottom:0.3rem; }
+  .card-sub { font-size:0.75rem; color:var(--muted); }
+  .val-green { color:var(--green); } .val-amber { color:var(--amber); } .val-red { color:var(--red); }
+
+  /* FILTERS */
+  .filters-bar { display:flex; gap:0.75rem; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; }
+  .filters-bar label { margin-bottom:0; color:var(--muted); font-size:0.8rem; white-space:nowrap; }
+  .filters-bar select, .filters-bar input { width:auto; flex:0 0 auto; padding:0.45rem 0.75rem; font-size:0.8rem; }
+  .btn-outline { padding:0.45rem 0.9rem; border:1px solid var(--rule); border-radius:6px; background:white; font-family:var(--sans); font-size:0.8rem; font-weight:500; cursor:pointer; color:var(--ink); transition:border-color 0.15s; white-space:nowrap; }
+  .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-blue { background:var(--accent); color:white; border-color:var(--accent); }
+  .btn-blue:hover { background:#1d4ed8; color:white; border-color:#1d4ed8; }
+
+  /* TABLE */
+  .table-wrap { background:white; border:1px solid var(--rule); border-radius:10px; overflow:hidden; }
+  .table-header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem; border-bottom:1px solid var(--rule); }
+  .table-header h2 { font-size:0.9rem; font-weight:600; }
+  .table-header .count { font-size:0.75rem; color:var(--muted); font-family:var(--mono); }
+  .bulk-bar { display:none; align-items:center; gap:0.75rem; padding:0.6rem 1.5rem; background:#eff6ff; border-bottom:1px solid #bfdbfe; font-size:0.8rem; color:#1d4ed8; }
+  .bulk-bar.visible { display:flex; }
+  .bulk-bar strong { font-weight:600; }
+  .btn-reimburse { padding:0.35rem 0.85rem; border-radius:5px; font-size:0.78rem; font-weight:500; cursor:pointer; border:none; background:var(--green); color:white; }
+  .btn-reimburse:hover { background:#15803d; }
+  .btn-unreimburse { padding:0.35rem 0.85rem; border-radius:5px; font-size:0.78rem; font-weight:500; cursor:pointer; border:none; background:#fee2e2; color:var(--red); }
+  .btn-unreimburse:hover { background:#fecaca; }
+  .btn-cancel-sel { padding:0.35rem 0.85rem; border-radius:5px; font-size:0.78rem; font-weight:500; cursor:pointer; border:1px solid #bfdbfe; background:white; color:#1d4ed8; }
+  table { width:100%; border-collapse:collapse; font-size:0.825rem; }
+  thead th { padding:0.75rem 1rem; text-align:left; font-size:0.7rem; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); background:#fafaf8; border-bottom:1px solid var(--rule); cursor:pointer; white-space:nowrap; user-select:none; }
+  thead th:hover { color:var(--ink); }
+  thead th.no-sort { cursor:default; }
+  thead th.no-sort:hover { color:var(--muted); }
+  tbody tr { border-bottom:1px solid #f3f2ef; transition:background 0.1s; }
+  tbody tr:hover { background:#fafaf8; }
+  tbody tr.selected-row { background:#eff6ff !important; }
+  tbody tr:last-child { border-bottom:none; }
+  td { padding:0.875rem 1rem; vertical-align:middle; }
+  td.mono { font-family:var(--mono); font-size:0.8rem; }
+  td.cb-col, th.cb-col { width:36px; padding-right:0; cursor:default; }
+  input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--accent); }
+
+  .badge { display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.6rem; border-radius:20px; font-size:0.7rem; font-weight:500; white-space:nowrap; }
+  .badge-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .badge-reimbursed { background:#dcfce7; color:#15803d; } .badge-reimbursed .badge-dot { background:#16a34a; }
+  .badge-invoiced { background:#dbeafe; color:#1d4ed8; } .badge-invoiced .badge-dot { background:#2563eb; }
+  .badge-approved { background:#ede9fe; color:#6d28d9; } .badge-approved .badge-dot { background:#7c3aed; }
+  .badge-pending { background:#fef3c7; color:#b45309; } .badge-pending .badge-dot { background:#d97706; }
+  .badge-submitted { background:#f0fdf4; color:#166534; } .badge-submitted .badge-dot { background:#22c55e; }
+
+  .reimburse-btn { display:inline-flex; align-items:center; gap:0.3rem; padding:0.22rem 0.6rem; border-radius:20px; font-size:0.7rem; font-weight:500; cursor:pointer; border:1px dashed; transition:all 0.15s; white-space:nowrap; background:transparent; font-family:var(--sans); }
+  .reimburse-btn.is-reimbursed { background:#dcfce7; color:#15803d; border-color:#86efac; }
+  .reimburse-btn.is-reimbursed:hover { background:#fee2e2; color:var(--red); border-color:#fca5a5; }
+  .reimburse-btn.is-reimbursed .label-default { display:inline; }
+  .reimburse-btn.is-reimbursed .label-hover { display:none; }
+  .reimburse-btn.is-reimbursed:hover .label-default { display:none; }
+  .reimburse-btn.is-reimbursed:hover .label-hover { display:inline; }
+  .reimburse-btn.not-reimbursed { background:white; color:var(--muted); border-color:var(--rule); }
+  .reimburse-btn.not-reimbursed:hover { background:#dcfce7; color:#15803d; border-color:#86efac; border-style:solid; }
+  .reimburse-btn:disabled { opacity:0.5; cursor:wait; }
+
+  .amt-neutral { font-family:var(--mono); }
+  .emp-avatar { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; font-size:0.7rem; font-weight:600; color:white; flex-shrink:0; }
+  .emp-cell { display:flex; align-items:center; gap:0.6rem; }
+  .emp-name { font-weight:500; }
+  .emp-email { font-size:0.7rem; color:var(--muted); }
+
+  .loading-row td { text-align:center; padding:3rem; color:var(--muted); font-size:0.85rem; }
+  .spinner { display:inline-block; width:18px; height:18px; border:2px solid var(--rule); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; margin-right:0.5rem; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .pagination { display:flex; align-items:center; justify-content:space-between; padding:0.875rem 1.5rem; border-top:1px solid var(--rule); font-size:0.8rem; color:var(--muted); }
+  .pagination-btns { display:flex; gap:0.4rem; }
+  .page-btn { padding:0.3rem 0.65rem; border:1px solid var(--rule); border-radius:5px; background:white; font-size:0.78rem; cursor:pointer; color:var(--ink); }
+  .page-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .page-btn.active { background:var(--accent); color:white; border-color:var(--accent); }
+  .page-btn:disabled { opacity:0.4; cursor:default; }
+
+  .export-bar { display:flex; gap:0.5rem; margin-top:1.25rem; justify-content:flex-end; }
+
+  #toast { position:fixed; bottom:1.5rem; right:1.5rem; background:var(--ink); color:white; padding:0.7rem 1.25rem; border-radius:8px; font-size:0.82rem; box-shadow:0 4px 20px rgba(0,0,0,0.2); display:none; z-index:999; animation:slideIn 0.2s ease; }
+  #toast.success { background:var(--green); }
+  #toast.error-toast { background:var(--red); }
+  @keyframes slideIn { from { transform:translateY(10px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+
+  @media (max-width:900px) { .summary-row { grid-template-columns:repeat(2,1fr); } .hide-mobile { display:none; } }
+  @media (max-width:600px) { .summary-row { grid-template-columns:1fr 1fr; } .main { padding:1rem; } header { padding:0 1rem; } }
+</style>
+</head>
+<body>
+
+<div id="setup-screen">
+  <div class="setup-card">
+    <h1>Clockify Expense Tracker</h1>
+    <p>Track expenses, reimbursements, and invoicing across your workspace with one-click tagging.</p>
+    <div class="form-group">
+      <label>Clockify API Key</label>
+      <input type="password" id="api-key-input" placeholder="Paste from Profile Settings → API" />
+    </div>
+    <div class="form-group">
+      <label>Workspace <span style="color:var(--muted)">(auto-loaded after key)</span></label>
+      <select id="workspace-select" disabled><option value="">— enter API key first —</option></select>
+    </div>
+    <div class="form-group">
+      <label>Date range</label>
+      <div style="display:flex;gap:0.5rem">
+        <input type="date" id="date-from" style="flex:1" />
+        <input type="date" id="date-to" style="flex:1" />
+      </div>
+    </div>
+    <button class="btn-primary" onclick="connect()">Load Expenses →</button>
+    <div class="error-msg" id="setup-error"></div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-top:1.25rem;line-height:1.6">
+      Your API key makes calls directly to Clockify from your browser. Nothing is stored elsewhere.
+      Reimbursement status is saved as a <strong>"Reimbursed"</strong> tag on each expense in Clockify.
+    </p>
+  </div>
+</div>
+
+<div id="app-screen">
+  <header>
+    <div class="logo">EXPENSE TRACKER</div>
+    <div class="workspace-label" id="workspace-display"></div>
+    <div class="header-right">
+      <span id="last-refreshed" style="font-size:0.72rem;color:#94a3b8"></span>
+      <button class="btn-sm" onclick="loadExpenses()">↺ Refresh</button>
+      <button class="btn-sm" onclick="reset()">⊞ Workspace</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="info-banner" id="tag-banner">
+      <span style="flex-shrink:0">ℹ</span>
+      <div>
+        <strong>Reimbursed tag ready.</strong>
+        Click the status pill on any expense row to toggle reimbursement — it writes a <strong>"Reimbursed"</strong> tag
+        directly to Clockify. Select multiple rows for bulk actions.
+      </div>
+    </div>
+
+    <div class="summary-row">
+      <div class="summary-card" onclick="cardFilter('')" id="card-all">
+        <div class="card-label">Total Expenses</div>
+        <div class="card-value" id="sum-total">—</div>
+        <div class="card-sub" id="sum-count">— items</div>
+      </div>
+      <div class="summary-card" onclick="cardFilter('REIMBURSED')" id="card-reimbursed">
+        <div class="card-label">Reimbursed</div>
+        <div class="card-value val-green" id="sum-reimbursed">—</div>
+        <div class="card-sub" id="sum-reimbursed-count">— items · click to filter</div>
+      </div>
+      <div class="summary-card" onclick="cardFilter('INVOICED')" id="card-invoiced">
+        <div class="card-label">Invoiced</div>
+        <div class="card-value val-amber" id="sum-invoiced">—</div>
+        <div class="card-sub" id="sum-invoiced-count">— items · click to filter</div>
+      </div>
+      <div class="summary-card" onclick="cardFilter('PENDING')" id="card-pending">
+        <div class="card-label">Pending / Not Billed</div>
+        <div class="card-value val-red" id="sum-pending">—</div>
+        <div class="card-sub" id="sum-pending-count">— items · click to filter</div>
+      </div>
+    </div>
+
+    <div class="filters-bar">
+      <label>Filter:</label>
+      <select id="filter-user" onchange="applyFilters()"><option value="">All employees</option></select>
+      <select id="filter-project" onchange="applyFilters()"><option value="">All projects</option></select>
+      <select id="filter-status" onchange="applyFilters()">
+        <option value="">All statuses</option>
+        <option value="REIMBURSED">Reimbursed</option>
+        <option value="INVOICED">Invoiced</option>
+        <option value="APPROVED">Approved</option>
+        <option value="PENDING">Pending</option>
+        <option value="SUBMITTED">Submitted</option>
+      </select>
+      <select id="filter-billable" onchange="applyFilters()">
+        <option value="">Billable & non-billable</option>
+        <option value="true">Billable only</option>
+        <option value="false">Non-billable only</option>
+      </select>
+      <button class="btn-outline" onclick="clearFilters()">Clear</button>
+      <button class="btn-outline btn-blue" onclick="loadExpenses()">↺ Reload</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Expense Ledger</h2>
+        <span class="count" id="result-count">—</span>
+      </div>
+      <div class="bulk-bar" id="bulk-bar">
+        <strong id="sel-count-label">0 selected</strong>
+        <button class="btn-reimburse" onclick="bulkSetReimbursed(true)">✓ Mark Reimbursed</button>
+        <button class="btn-unreimburse" onclick="bulkSetReimbursed(false)">✕ Remove Reimbursed</button>
+        <button class="btn-cancel-sel" onclick="clearSelection()">Cancel</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th class="cb-col no-sort"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)"></th>
+              <th onclick="sortBy('user')">Employee ↕</th>
+              <th onclick="sortBy('date')">Date ↕</th>
+              <th class="no-sort">Category</th>
+              <th class="no-sort">Project</th>
+              <th onclick="sortBy('amount')">Amount ↕</th>
+              <th class="no-sort">Billable</th>
+              <th class="no-sort">Reimbursed</th>
+              <th class="no-sort">Approval Status</th>
+              <th class="no-sort hide-mobile">Notes</th>
+            </tr>
+          </thead>
+          <tbody id="expense-tbody">
+            <tr class="loading-row"><td colspan="10">Enter your API key to load expenses.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination" style="display:none">
+        <span id="page-info"></span>
+        <div class="pagination-btns" id="page-buttons"></div>
+      </div>
+    </div>
+    <div class="export-bar">
+      <button class="btn-outline" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let API_KEY = '', WORKSPACE_ID = '', WORKSPACE_NAME = '';
+let REIMBURSED_TAG_ID = null;
+let allExpenses = [], filteredExpenses = [];
+let selectedIds = new Set();
+let currentPage = 1;
+const PAGE_SIZE = 25;
+let sortField = 'date', sortDir = 'desc';
+let activeCardFilter = '';
+
+// Date defaults — last 90 days
+const today = new Date(), past = new Date();
+past.setDate(today.getDate() - 90);
+document.getElementById('date-from').value = past.toISOString().slice(0,10);
+document.getElementById('date-to').value = today.toISOString().slice(0,10);
+
+document.getElementById('api-key-input').addEventListener('blur', async () => {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) return;
+  API_KEY = key;
+  await loadWorkspaces();
+});
+
+// ── API helpers ──────────────────────────────────────────────
+async function api(method, path, body, baseUrl) {
+  const base = baseUrl || 'https://api.clockify.me/api/v1';
+  const opts = {
+    method,
+    headers: { 'X-Api-Key': API_KEY, 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(base + path, opts);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`API ${r.status}${txt ? ': ' + txt.slice(0,120) : ''}`);
+  }
+  // 204 no content
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+const GET  = (path, base)       => api('GET',  path, null, base);
+const POST = (path, body, base) => api('POST', path, body, base);
+const PUT  = (path, body)       => api('PUT',  path, body);
+
+// ── Setup ────────────────────────────────────────────────────
+async function loadWorkspaces() {
+  try {
+    const ws = await GET('/workspaces');
+    const sel = document.getElementById('workspace-select');
+    sel.innerHTML = '';
+    sel.disabled = false;
+    ws.forEach(w => {
+      const o = document.createElement('option');
+      o.value = w.id; o.textContent = w.name;
+      sel.appendChild(o);
+    });
+    showError('');
+  } catch(e) {
+    showError('Could not load workspaces — check your API key. (' + e.message + ')');
+  }
+}
+
+async function connect() {
+  API_KEY = document.getElementById('api-key-input').value.trim();
+  const sel = document.getElementById('workspace-select');
+  WORKSPACE_ID = sel.value;
+  WORKSPACE_NAME = sel.options[sel.selectedIndex]?.text || '';
+  if (!API_KEY) { showError('Please enter your API key.'); return; }
+  if (!WORKSPACE_ID) { showError('Please select a workspace.'); return; }
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('workspace-display').textContent = WORKSPACE_NAME;
+  await ensureReimbursedTag();
+  await loadExpenses();
+}
+
+async function ensureReimbursedTag() {
+  try {
+    const tags = await GET(`/workspaces/${WORKSPACE_ID}/tags`);
+    const found = tags.find(t => t.name.toLowerCase() === 'reimbursed');
+    if (found) {
+      REIMBURSED_TAG_ID = found.id;
+    } else {
+      const created = await POST(`/workspaces/${WORKSPACE_ID}/tags`, { name: 'Reimbursed' });
+      REIMBURSED_TAG_ID = created.id;
+      toast('Created "Reimbursed" tag in Clockify ✓', 'success');
+    }
+    document.getElementById('tag-banner').classList.add('show');
+  } catch(e) {
+    console.warn('Tag setup failed:', e.message);
+  }
+}
+
+// ── Load expenses ─────────────────────────────────────────────
+async function loadExpenses() {
+  showLoading();
+  try {
+    const from = document.getElementById('date-from').value;
+    const to   = document.getElementById('date-to').value;
+    const payload = { sortOrder: 'DESCENDING', sortColumn: 'DATE', page: 1, pageSize: 500 };
+    if (from) payload.dateRangeStart = new Date(from).toISOString();
+    if (to)   payload.dateRangeEnd   = new Date(to + 'T23:59:59').toISOString();
+
+    const data = await POST(
+      `/workspaces/${WORKSPACE_ID}/reports/expense`,
+      payload,
+      'https://reports.api.clockify.me/v1'
+    );
+    allExpenses = data.expenses || [];
+    buildFilters();
+    applyFilters();
+    document.getElementById('last-refreshed').textContent =
+      `Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
+  } catch(e) {
+    console.error(e);
+    showTableMsg(`Error: ${e.message}`);
+  }
+}
+
+// ── Filters ───────────────────────────────────────────────────
+function buildFilters() {
+  const users = {}, projects = {};
+  allExpenses.forEach(e => {
+    if (e.user?.id) users[e.user.id] = e.user.name || e.user.email || e.user.id;
+    if (e.project?.id) projects[e.project.id] = e.project.name || e.project.id;
+  });
+  populateSelect('filter-user', users, 'All employees');
+  populateSelect('filter-project', projects, 'All projects');
+}
+
+function populateSelect(id, map, placeholder) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  Object.entries(map).forEach(([v, label]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = label;
+    if (v === cur) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function applyFilters() {
+  const user     = document.getElementById('filter-user').value;
+  const project  = document.getElementById('filter-project').value;
+  const status   = document.getElementById('filter-status').value || activeCardFilter;
+  const billable = document.getElementById('filter-billable').value;
+
+  filteredExpenses = allExpenses.filter(e => {
+    if (user    && e.user?.id    !== user)    return false;
+    if (project && e.project?.id !== project) return false;
+    if (status  && getStatus(e)  !== status)  return false;
+    if (billable === 'true'  && !e.billable)  return false;
+    if (billable === 'false' &&  e.billable)  return false;
+    return true;
+  });
+
+  filteredExpenses.sort((a, b) => {
+    let av, bv;
+    if      (sortField === 'date')   { av = a.date   || ''; bv = b.date   || ''; }
+    else if (sortField === 'amount') { av = a.total  || 0;  bv = b.total  || 0;  }
+    else if (sortField === 'user')   { av = a.user?.name || ''; bv = b.user?.name || ''; }
+    const c = av < bv ? -1 : av > bv ? 1 : 0;
+    return sortDir === 'asc' ? c : -c;
+  });
+
+  currentPage = 1;
+  selectedIds.clear();
+  updateBulkBar();
+  renderTable();
+  updateSummary();
+  document.getElementById('result-count').textContent =
+    `${filteredExpenses.length} expense${filteredExpenses.length !== 1 ? 's' : ''}`;
+}
+
+function cardFilter(status) {
+  activeCardFilter = (activeCardFilter === status) ? '' : status;
+  document.getElementById('filter-status').value = '';
+  ['all','reimbursed','invoiced','pending'].forEach(k =>
+    document.getElementById('card-'+k).classList.remove('active-filter'));
+  const map = {'':'all','REIMBURSED':'reimbursed','INVOICED':'invoiced','PENDING':'pending'};
+  document.getElementById('card-'+(map[activeCardFilter]||'all')).classList.add('active-filter');
+  applyFilters();
+}
+
+function sortBy(field) {
+  sortDir = sortField === field ? (sortDir === 'asc' ? 'desc' : 'asc') : 'desc';
+  sortField = field;
+  applyFilters();
+}
+
+function clearFilters() {
+  ['filter-user','filter-project','filter-status','filter-billable']
+    .forEach(id => document.getElementById(id).value = '');
+  activeCardFilter = '';
+  ['all','reimbursed','invoiced','pending'].forEach(k =>
+    document.getElementById('card-'+k).classList.remove('active-filter'));
+  applyFilters();
+}
+
+// ── Status logic ──────────────────────────────────────────────
+function isReimbursed(e) {
+  if (!REIMBURSED_TAG_ID) return false;
+  return (e.tags || []).some(t => t.id === REIMBURSED_TAG_ID);
+}
+
+function getStatus(e) {
+  if (isReimbursed(e))             return 'REIMBURSED';
+  if (e.invoiced === true)         return 'INVOICED';
+  if (e.approvalStatus === 'APPROVED')  return 'APPROVED';
+  if (e.approvalStatus === 'SUBMITTED') return 'SUBMITTED';
+  return 'PENDING';
+}
+
+function approvalBadge(e) {
+  if (e.invoiced) return `<span class="badge badge-invoiced"><span class="badge-dot"></span>$ Invoiced</span>`;
+  const map = {
+    'APPROVED':  ['badge-approved',  '✓ Approved'],
+    'SUBMITTED': ['badge-submitted', '→ Submitted'],
+    'PENDING':   ['badge-pending',   '… Pending'],
+  };
+  const [cls, lbl] = map[e.approvalStatus] || ['badge-pending','… Pending'];
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${lbl}</span>`;
+}
+
+// ── Reimbursement toggle ──────────────────────────────────────
+async function toggleReimbursed(expenseId, currentlyReimbursed) {
+  if (!REIMBURSED_TAG_ID) { toast('Reimbursed tag not ready — try reloading.', 'error-toast'); return; }
+  const expense = allExpenses.find(e => e.id === expenseId);
+  if (!expense) return;
+
+  const btn = document.querySelector(`[data-eid="${expenseId}"]`);
+  if (btn) btn.disabled = true;
+
+  try {
+    const currentTags = (expense.tags || []).map(t => t.id);
+    const newTags = currentlyReimbursed
+      ? currentTags.filter(id => id !== REIMBURSED_TAG_ID)
+      : [...new Set([...currentTags, REIMBURSED_TAG_ID])];
+
+    await PUT(`/workspaces/${WORKSPACE_ID}/expenses/${expenseId}`, {
+      tagIds:     newTags,
+      projectId:  expense.project?.id  || null,
+      categoryId: expense.category?.id || null,
+      notes:      expense.notes  || '',
+      date:       expense.date,
+      quantity:   expense.quantity,
+      billable:   expense.billable,
+      total:      expense.total,
+    });
+
+    // Update local copy
+    expense.tags = currentlyReimbursed
+      ? (expense.tags || []).filter(t => t.id !== REIMBURSED_TAG_ID)
+      : [...(expense.tags || []), { id: REIMBURSED_TAG_ID, name: 'Reimbursed' }];
+
+    toast(currentlyReimbursed ? 'Reimbursed tag removed' : '✓ Marked as Reimbursed', 'success');
+    applyFilters();
+  } catch(e) {
+    toast('Could not update: ' + e.message, 'error-toast');
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function bulkSetReimbursed(markAs) {
+  if (!selectedIds.size || !REIMBURSED_TAG_ID) return;
+  let ok = 0, fail = 0;
+  for (const id of [...selectedIds]) {
+    const expense = allExpenses.find(e => e.id === id);
+    if (!expense) continue;
+    try {
+      const cur = (expense.tags || []).map(t => t.id);
+      const newTags = markAs
+        ? [...new Set([...cur, REIMBURSED_TAG_ID])]
+        : cur.filter(i => i !== REIMBURSED_TAG_ID);
+      await PUT(`/workspaces/${WORKSPACE_ID}/expenses/${id}`, {
+        tagIds: newTags, projectId: expense.project?.id||null,
+        categoryId: expense.category?.id||null, notes: expense.notes||'',
+        date: expense.date, quantity: expense.quantity,
+        billable: expense.billable, total: expense.total,
+      });
+      expense.tags = markAs
+        ? [...(expense.tags||[]), { id: REIMBURSED_TAG_ID, name: 'Reimbursed' }]
+        : (expense.tags||[]).filter(t => t.id !== REIMBURSED_TAG_ID);
+      ok++;
+    } catch { fail++; }
+  }
+  toast(`${markAs?'✓ Reimbursed':'Removed'}: ${ok}${fail?' · '+fail+' failed':''}`,
+    fail ? 'error-toast' : 'success');
+  clearSelection();
+  applyFilters();
+}
+
+// ── Selection ─────────────────────────────────────────────────
+function toggleSelectAll(cb) {
+  const page = filteredExpenses.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+  page.forEach(e => cb.checked ? selectedIds.add(e.id) : selectedIds.delete(e.id));
+  updateBulkBar(); renderTable();
+}
+function toggleRow(id, checked) {
+  checked ? selectedIds.add(id) : selectedIds.delete(id);
+  updateBulkBar();
+}
+function clearSelection() {
+  selectedIds.clear(); updateBulkBar();
+  const sa = document.getElementById('select-all');
+  if (sa) sa.checked = false;
+  renderTable();
+}
+function updateBulkBar() {
+  const n = selectedIds.size;
+  document.getElementById('bulk-bar').classList.toggle('visible', n > 0);
+  document.getElementById('sel-count-label').textContent =
+    `${n} expense${n!==1?'s':''} selected`;
+}
+
+// ── Render ────────────────────────────────────────────────────
+function avatarColor(name) {
+  const cols = ['#2563eb','#7c3aed','#db2777','#0891b2','#059669','#d97706'];
+  let h = 0;
+  for (const c of (name||'?')) h = (h*31 + c.charCodeAt(0)) % cols.length;
+  return cols[Math.abs(h)];
+}
+function initials(n) { return (n||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+function fmt(v, cur) {
+  if (v == null) return '—';
+  const s = cur==='USD'?'$':cur==='EUR'?'€':cur==='GBP'?'£':(cur||'$');
+  return s + Number(v).toFixed(2);
+}
+
+function renderTable() {
+  const tbody = document.getElementById('expense-tbody');
+  if (!filteredExpenses.length) {
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="10">No expenses match your filters.</td></tr>';
+    document.getElementById('pagination').style.display = 'none';
+    return;
+  }
+  const start = (currentPage-1) * PAGE_SIZE;
+  const page  = filteredExpenses.slice(start, start + PAGE_SIZE);
+  const total = Math.ceil(filteredExpenses.length / PAGE_SIZE);
+
+  tbody.innerHTML = page.map(e => {
+    const reimbursed = isReimbursed(e);
+    const name  = e.user?.name || e.user?.email || '—';
+    const color = avatarColor(name);
+    const date  = e.date ? new Date(e.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+    const billableHtml = e.billable
+      ? '<span style="color:var(--green);font-size:0.75rem">● billable</span>'
+      : '<span style="color:var(--muted);font-size:0.75rem">○ no</span>';
+    const notes = (e.notes||'').slice(0,60) + ((e.notes||'').length>60?'…':'');
+    const checked = selectedIds.has(e.id) ? 'checked' : '';
+    const rowClass = selectedIds.has(e.id) ? 'selected-row' : '';
+
+    let reimburseBtn;
+    if (REIMBURSED_TAG_ID) {
+      reimburseBtn = reimbursed
+        ? `<button class="reimburse-btn is-reimbursed" data-eid="${e.id}"
+              onclick="toggleReimbursed('${e.id}',true)">
+            <span class="label-default">✓ Reimbursed</span>
+            <span class="label-hover">✕ Remove</span>
+           </button>`
+        : `<button class="reimburse-btn not-reimbursed" data-eid="${e.id}"
+              onclick="toggleReimbursed('${e.id}',false)">
+            + Mark Reimbursed
+           </button>`;
+    } else {
+      reimburseBtn = reimbursed
+        ? '<span class="badge badge-reimbursed"><span class="badge-dot"></span>✓ Reimbursed</span>'
+        : '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+    }
+
+    return `<tr class="${rowClass}">
+      <td class="cb-col"><input type="checkbox" ${checked} onchange="toggleRow('${e.id}',this.checked)"></td>
+      <td><div class="emp-cell">
+        <div class="emp-avatar" style="background:${color}">${initials(name)}</div>
+        <div><div class="emp-name">${name}</div><div class="emp-email">${e.user?.email||''}</div></div>
+      </div></td>
+      <td class="mono">${date}</td>
+      <td>${e.category?.name||'—'}</td>
+      <td>${e.project?.name||'—'}</td>
+      <td class="amt-neutral">${fmt(e.total, e.currency)}</td>
+      <td>${billableHtml}</td>
+      <td>${reimburseBtn}</td>
+      <td>${approvalBadge(e)}</td>
+      <td class="hide-mobile" style="color:var(--muted);font-size:0.78rem">${notes}</td>
+    </tr>`;
+  }).join('');
+
+  const pageIds = page.map(e => e.id);
+  document.getElementById('select-all').checked =
+    pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
+
+  const pag = document.getElementById('pagination');
+  if (total > 1) {
+    pag.style.display = 'flex';
+    document.getElementById('page-info').textContent =
+      `Showing ${start+1}–${Math.min(start+PAGE_SIZE, filteredExpenses.length)} of ${filteredExpenses.length}`;
+    let btns = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+    for (let p = Math.max(1,currentPage-2); p <= Math.min(total,currentPage+2); p++)
+      btns += `<button class="page-btn ${p===currentPage?'active':''}" onclick="goPage(${p})">${p}</button>`;
+    btns += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?'disabled':''}>›</button>`;
+    document.getElementById('page-buttons').innerHTML = btns;
+  } else { pag.style.display = 'none'; }
+}
+
+function goPage(p) { currentPage = p; renderTable(); window.scrollTo(0,0); }
+
+function updateSummary() {
+  const exp = filteredExpenses;
+  const total = exp.reduce((s,e)=>s+(e.total||0),0);
+  const rList = exp.filter(e=>getStatus(e)==='REIMBURSED');
+  const iList = exp.filter(e=>getStatus(e)==='INVOICED');
+  const pList = exp.filter(e=>['PENDING','SUBMITTED','APPROVED'].includes(getStatus(e)));
+  const cur = exp[0]?.currency || 'USD';
+  document.getElementById('sum-total').textContent = fmt(total,cur);
+  document.getElementById('sum-count').textContent = `${exp.length} expense${exp.length!==1?'s':''}`;
+  document.getElementById('sum-reimbursed').textContent = fmt(rList.reduce((s,e)=>s+(e.total||0),0),cur);
+  document.getElementById('sum-reimbursed-count').textContent = `${rList.length} items · click to filter`;
+  document.getElementById('sum-invoiced').textContent = fmt(iList.reduce((s,e)=>s+(e.total||0),0),cur);
+  document.getElementById('sum-invoiced-count').textContent = `${iList.length} items · click to filter`;
+  document.getElementById('sum-pending').textContent = fmt(pList.reduce((s,e)=>s+(e.total||0),0),cur);
+  document.getElementById('sum-pending-count').textContent = `${pList.length} items · click to filter`;
+}
+
+function showLoading() {
+  document.getElementById('expense-tbody').innerHTML =
+    '<tr class="loading-row"><td colspan="10"><span class="spinner"></span>Loading expenses…</td></tr>';
+  document.getElementById('pagination').style.display = 'none';
+}
+function showTableMsg(msg) {
+  document.getElementById('expense-tbody').innerHTML =
+    `<tr class="loading-row"><td colspan="10">${msg}</td></tr>`;
+}
+function showError(msg) {
+  const el = document.getElementById('setup-error');
+  el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+}
+function reset() {
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+  allExpenses = []; filteredExpenses = []; selectedIds.clear(); REIMBURSED_TAG_ID = null;
+}
+
+function exportCSV() {
+  if (!filteredExpenses.length) { toast('No data to export.'); return; }
+  const headers = ['Date','Employee','Email','Category','Project','Amount','Currency','Billable','Reimbursed','Approval Status','Notes'];
+  const rows = filteredExpenses.map(e => [
+    e.date ? new Date(e.date).toLocaleDateString() : '',
+    e.user?.name||'', e.user?.email||'',
+    e.category?.name||'', e.project?.name||'',
+    (e.total||0).toFixed(2), e.currency||'',
+    e.billable?'Yes':'No',
+    isReimbursed(e)?'Yes':'No',
+    getStatus(e),
+    (e.notes||'').replace(/,/g,'|')
+  ]);
+  const csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `clockify-expenses-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('CSV exported ✓', 'success');
+}
+
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = type||'';
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(()=>t.style.display='none', 2800);
+}
+</script>
+</body>
+</html>
